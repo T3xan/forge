@@ -300,7 +300,7 @@ export const LIBRARY = [
     description: 'Loaded carries and core stability movements. Build functional strength, grip, and total-body resilience.',
     exercises: [
       {
-        name: 'Farmer's Carry',
+        name: "Farmer's Carry",
         equipment: 'Dumbbell',
         muscles: ['Traps', 'Forearms', 'Core', 'Glutes'],
         difficulty: 'Beginner',
