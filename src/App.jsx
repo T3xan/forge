@@ -3,6 +3,7 @@ import { loadData, saveData, daysSince } from './utils'
 import Dashboard from './views/Dashboard'
 import Exercises from './views/Exercises'
 import Log from './views/Log'
+import Library from './views/Library'
 
 export default function App() {
   const [data, setData] = useState(() => {
@@ -69,6 +70,7 @@ export default function App() {
   const navItems = [
     { key: 'dashboard', label: 'Dashboard' },
     { key: 'exercises', label: 'Exercises' },
+    { key: 'library', label: 'Library' },
     { key: 'log', label: selectedEx ? selectedEx.name : 'Log' },
   ]
 
@@ -139,6 +141,15 @@ export default function App() {
           onEdit={editExercise}
           onDelete={deleteExercise}
           onSelect={selectExercise}
+        />
+      )}
+
+      {view === 'library' && (
+        <Library
+          exercises={data.exercises}
+          onAddExercise={(ex) => {
+            addExercise(ex)
+          }}
         />
       )}
 
