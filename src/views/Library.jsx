@@ -195,19 +195,29 @@ export default function Library({ exercises, onAddExercise }) {
 
   const filtered = LIBRARY.map(group => ({
     ...group,
-    exercises: group.exercises.filter(ex => {
-      const matchSearch = !search ||
-        ex.name.toLowerCase().includes(search.toLowerCase()) ||
-        ex.muscles.some(m => m.toLowerCase().includes(search.toLowerCase()))
-      const matchEquipment = filterEquipment === 'All' || ex.equipment.includes(filterEquipment)
-      return matchSearch && matchEquipment
-    }),
+    exercises: group.exercises
+      .map(ex => ({ ...ex, pattern: group.pattern }))
+      .filter(ex => {
+        const matchSearch = !search ||
+          ex.name.toLowerCase().includes(search.toLowerCase()) ||
+          ex.muscles.some(m => m.toLowerCase().includes(search.toLowerCase()))
+        const matchEquipment = filterEquipment === 'All' || ex.equipment.includes(filterEquipment)
+        return matchSearch && matchEquipment
+      }),
   })).filter(g => g.exercises.length > 0)
 
   const totalShown = filtered.reduce((a, g) => a + g.exercises.length, 0)
 
   function handleAdd(ex) {
-    onAddExercise({ name: ex.name, unit: ex.defaultUnit })
+    onAddExercise({
+      name: ex.name,
+      unit: ex.defaultUnit,
+      pattern: ex.pattern,
+      equipment: ex.equipment ? ex.equipment.split('/')[0] : '',
+      difficulty: ex.difficulty,
+      muscles: ex.muscles || [],
+      description: ex.description || '',
+    })
   }
 
   return (

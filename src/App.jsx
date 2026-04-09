@@ -23,15 +23,23 @@ export default function App() {
     }).length
   }, [data])
 
-  function addExercise({ name, unit }) {
-    const ex = { id: Date.now().toString(), name, unit, createdAt: new Date().toISOString() }
+  function addExercise({ name, unit, pattern, equipment, difficulty, muscles, description }) {
+    const ex = {
+      id: Date.now().toString(), name, unit,
+      pattern: pattern || '', equipment: equipment || '',
+      difficulty: difficulty || '', muscles: muscles || [],
+      description: description || '',
+      createdAt: new Date().toISOString(),
+    }
     persist({ ...data, exercises: [...data.exercises, ex] })
   }
 
-  function editExercise(id, { name, unit }) {
-    const exercises = data.exercises.map(e => e.id === id ? { ...e, name, unit } : e)
+  function editExercise(id, { name, unit, pattern, equipment, difficulty, muscles, description }) {
+    const updates = { name, unit, pattern: pattern || '', equipment: equipment || '',
+                      difficulty: difficulty || '', muscles: muscles || [], description: description || '' }
+    const exercises = data.exercises.map(e => e.id === id ? { ...e, ...updates } : e)
     persist({ ...data, exercises })
-    if (selectedEx?.id === id) setSelectedEx(prev => ({ ...prev, name, unit }))
+    if (selectedEx?.id === id) setSelectedEx(prev => ({ ...prev, ...updates }))
   }
 
   function deleteExercise(id) {
