@@ -27,6 +27,12 @@ export default function App() {
     persist({ ...data, exercises: [...data.exercises, ex] })
   }
 
+  function editExercise(id, { name, unit }) {
+    const exercises = data.exercises.map(e => e.id === id ? { ...e, name, unit } : e)
+    persist({ ...data, exercises })
+    if (selectedEx?.id === id) setSelectedEx(prev => ({ ...prev, name, unit }))
+  }
+
   function deleteExercise(id) {
     if (!confirm('Delete this exercise and all its history?')) return
     const exercises = data.exercises.filter(e => e.id !== id)
@@ -40,6 +46,19 @@ export default function App() {
       .sort((a, b) => new Date(a.date) - new Date(b.date))
     persist({ ...data, logs: { ...data.logs, [selectedEx.id]: updated } })
     if (newPRWeight) setPrModal({ exercise: selectedEx.name, weight: newPRWeight, unit: selectedEx.unit })
+  }
+
+  function editSession(exerciseId, entryId, updatedEntry) {
+    const updated = (data.logs[exerciseId] || [])
+      .map(e => e.id === entryId ? { ...e, ...updatedEntry } : e)
+      .sort((a, b) => new Date(a.date) - new Date(b.date))
+    persist({ ...data, logs: { ...data.logs, [exerciseId]: updated } })
+  }
+
+  function deleteSession(exerciseId, entryId) {
+    if (!confirm('Delete this session?')) return
+    const updated = (data.logs[exerciseId] || []).filter(e => e.id !== entryId)
+    persist({ ...data, logs: { ...data.logs, [exerciseId]: updated } })
   }
 
   function selectExercise(ex) {
@@ -117,6 +136,7 @@ export default function App() {
           exercises={data.exercises}
           logs={data.logs}
           onAdd={addExercise}
+          onEdit={editExercise}
           onDelete={deleteExercise}
           onSelect={selectExercise}
         />
@@ -130,6 +150,8 @@ export default function App() {
           onSelect={selectExercise}
           onBack={() => { setSelectedEx(null); setView('dashboard') }}
           onLog={logSession}
+          onEditSession={editSession}
+          onDeleteSession={deleteSession}
         />
       )}
 
