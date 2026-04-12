@@ -36,7 +36,7 @@ function MetaTag({ label, color, bg, border }) {
   )
 }
 
-export default function ExerciseRow({ ex, logs, onClick, onDelete, onEdit }) {
+export default function ExerciseRow({ ex, logs, onClick, onDelete, onEdit, onLogToday }) {
   const [hovered, setHovered] = useState(false)
   const last = logs.length ? logs[logs.length - 1] : null
   const days = daysSince(last?.date)
@@ -95,6 +95,25 @@ export default function ExerciseRow({ ex, logs, onClick, onDelete, onEdit }) {
         </span>
       </div>
 
+      {onLogToday && (
+        <button
+          onClick={e => { e.stopPropagation(); onLogToday() }}
+          title="Log to today"
+          style={{
+            background: 'rgba(232,255,71,0.12)',
+            border: '1px solid rgba(232,255,71,0.3)',
+            color: 'var(--accent)',
+            borderRadius: 6,
+            padding: '4px 9px',
+            fontSize: 11,
+            fontFamily: 'DM Mono',
+            flexShrink: 0,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          + Today
+        </button>
+      )}
       {onEdit && (
         <button className="btn-danger" style={{ color: 'var(--muted)' }}
           onClick={e => { e.stopPropagation(); onEdit() }} title="Edit exercise">

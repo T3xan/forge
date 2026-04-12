@@ -50,6 +50,12 @@ export default function App() {
     if (selectedEx?.id === id) { setSelectedEx(null); setView('dashboard') }
   }
 
+  function logToday(exerciseId, entry) {
+    const updated = [...(data.logs[exerciseId] || []), entry]
+      .sort((a, b) => new Date(a.date) - new Date(b.date))
+    persist({ ...data, logs: { ...data.logs, [exerciseId]: updated } })
+  }
+
   function logSession(entry, newPRWeight) {
     const updated = [...(data.logs[selectedEx.id] || []), entry]
       .sort((a, b) => new Date(a.date) - new Date(b.date))
@@ -149,6 +155,7 @@ export default function App() {
           onEdit={editExercise}
           onDelete={deleteExercise}
           onSelect={selectExercise}
+          onLogToday={logToday}
         />
       )}
 

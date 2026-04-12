@@ -123,6 +123,19 @@ export default function Log({ exercises, logs, selectedEx, onSelect, onBack, onL
   const lastSession = exLogs.length ? exLogs[exLogs.length - 1] : null
   const staleDays = selectedEx ? daysSince(lastSession?.date) : null
 
+  function getPrefillSets() {
+    if (!lastSession) return [{ weight: '', reps: '' }]
+    return lastSession.sets.map(s => ({ weight: String(s.weight), reps: String(s.reps) }))
+  }
+
+  function openForm() {
+    setLogSets(getPrefillSets())
+    setLogDate(today())
+    setLogNote('')
+    setShowForm(true)
+    setEditingSessionId(null)
+  }
+
   function resetForm() {
     setLogSets([{ weight: '', reps: '' }]); setLogNote(''); setLogDate(today()); setShowForm(false)
   }
@@ -184,7 +197,7 @@ export default function Log({ exercises, logs, selectedEx, onSelect, onBack, onL
           </div>
         </div>
         <button className="btn-primary" style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6 }}
-          onClick={() => { setShowForm(!showForm); setEditingSessionId(null) }}>
+          onClick={() => { if (showForm) { resetForm() } else { openForm() } }}>
           <Icon name={showForm ? 'x' : 'plus'} size={13} />
           {showForm ? 'Cancel' : 'Log Session'}
         </button>
@@ -200,7 +213,12 @@ export default function Log({ exercises, logs, selectedEx, onSelect, onBack, onL
 
       {showForm && (
         <div className="card" style={{ marginBottom: 24 }}>
-          <p className="label" style={{ marginBottom: 16 }}>New Session</p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 16 }}>
+            <p className="label">New Session</p>
+            {lastSession && (
+              <span style={{ fontSize: 11, color: 'var(--muted)' }}>pre-filled from last session</span>
+            )}
+          </div>
           <div style={{ marginBottom: 14 }}>
             <label style={{ fontSize: 12, color: 'var(--text2)', display: 'block', marginBottom: 6 }}>Date</label>
             <input type="date" value={logDate} onChange={e => setLogDate(e.target.value)} />
