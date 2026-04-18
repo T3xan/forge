@@ -155,9 +155,218 @@ function SessionCard({ exName, session, unit, onGo }) {
   )
 }
 
-/* ── My Day ── */
-function MyDay({ exercises, logs, onSelect }) {
+/* ── quick-log modal (used from dashboard) ── */
+function QuickLogFromDashboard({ ex, lastSession, onSave, onCancel }) {
+  const prefill = lastSession
+    ? lastSession.sets.map(s => ({ weight: String(s.weight), reps: String(s.reps) }))
+    : [{ weight: '', reps: '' }]
+  const [sets, setSets] = useState(prefill)
+  const [note, setNote] = useState('')
+
+  function addSet() { setSets(s => [...s, { weight: s[s.length-1]?.weight||'', reps: s[s.length-1]?.reps||'' }]) }
+  function removeSet(i) { setSets(s => s.filter((_,idx) => idx!==i)) }
+  function upd(i,f,v) { setSets(s => s.map((x,idx) => idx===i ? {...x,[f]:v} : x)) }
+
+  function handleSave() {
+    const valid = sets.filter(s => s.reps!=='').map(s => ({ weight: s.weight!=='' ? parseFloat(s.weight) : 0, reps: parseInt(s.reps) }))
+    if (!valid.length) return
+    onSave({ id: Date.now().toString(), date: today(), sets: valid, note })
+  }
+
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.8)', display:'flex', alignItems:'flex-end', justifyContent:'center', zIndex:200 }} onClick={onCancel}>
+      <div style={{ background:'var(--surface)', borderRadius:'16px 16px 0 0', border:'1px solid var(--border)', padding:'20px 20px 32px', width:'100%', maxWidth:520 }} onClick={e=>e.stopPropagation()}>
+        <div style={{ width:36, height:4, background:'var(--border2)', borderRadius:2, margin:'0 auto 18px' }} />
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:14 }}>
+          <div>
+            <p className="label" style={{ marginBottom:3 }}>Log for Today</p>
+            <p style={{ fontWeight:500, fontSize:16 }}>{ex.name}</p>
+            {lastSession && <p style={{ fontSize:11, color:'var(--muted)', marginTop:2 }}>Pre-filled from last session</p>}
+          </div>
+          <button style={{ background:'transparent', border:'none', color:'var(--muted)', fontSize:20, padding:'0 4px', cursor:'pointer' }} onClick={onCancel}>×</button>
+        </div>
+        <div style={{ marginBottom:12 }}>
+          {sets.map((s,i) => (
+            <div key={i} style={{ display:'flex', gap:8, marginBottom:8, alignItems:'center' }}>
+              <span className="mono" style={{ fontSize:12, color:'var(--muted)', minWidth:20, textAlign:'right' }}>{i+1}</span>
+              <input type="number" placeholder={ex.unit==='none' ? '—' : `Weight (${ex.unit})`} value={s.weight} onChange={e=>upd(i,'weight',e.target.value)} style={{ flex:2 }} disabled={ex.unit==='none'} />
+              <input type="number" placeholder="Reps" value={s.reps} onChange={e=>upd(i,'reps',e.target.value)} style={{ flex:1 }} />
+              {sets.length>1 && <button style={{ background:'transparent', border:'none', color:'var(--muted)', cursor:'pointer', fontSize:16 }} onClick={()=>removeSet(i)}>×</button>}
+            </div>
+          ))}
+          <button className="btn-ghost" style={{ fontSize:12, marginTop:4 }} onClick={addSet}>+ Add Set</button>
+        </div>
+        <textarea value={note} onChange={e=>setNote(e.target.value)} rows={2} placeholder="Note (optional)" style={{ resize:'none', marginBottom:14 }} />
+        <button className="btn-primary" style={{ width:'100%', padding:12, fontSize:14 }} onClick={handleSave}>Save to Today</button>
+      </div>
+    </div>
+  )
+}
+
+/* ── suggested workouts ── */
+// Push: Mon(1) Wed(3) Fri(5)  Pull: Tue(2) Thu(4) Sat(6)  Sun(0): rest
+const DAY_SCHEDULE = { 0: null, 1: 'Push', 2: 'Pull', 3: 'Push', 4: 'Pull', 5: 'Push', 6: 'Pull' }
+
+const PUSH_EXERCISES = [
+  'Barbell Bench Press', 'Incline Barbell Press', 'Dumbbell Bench Press',
+  'Overhead Press (OHP)', 'Dumbbell Shoulder Press', 'Cable Lateral Raise',
+  'Dumbbell Lateral Raise', 'Cable Chest Fly', 'Close-Grip Bench Press',
+  'Tricep Pushdown', 'Skull Crusher',
+]
+const PULL_EXERCISES = [
+  'Barbell Row', 'Dumbbell Row', 'Lat Pulldown', 'Seated Cable Row',
+  'Cable Face Pull', 'Chest-Supported Row', 'EZ Bar Curl',
+  'Incline Dumbbell Curl', 'Hammer Curl', 'Preacher Curl',
+]
+
+const DISMISSED_KEY = 'forge_suggestions_dismissed'
+
+function getSuggestDismissed() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(DISMISSED_KEY) || '{}')
+    return raw.date === today() ? raw.ids || [] : []
+  } catch { return [] }
+}
+
+function setSuggestDismissed(ids) {
+  localStorage.setItem(DISMISSED_KEY, JSON.stringify({ date: today(), ids }))
+}
+
+function SuggestedWorkouts({ exercises, logs, onSelect, onLogToday }) {
   const todayStr = isoToday()
+  const dayOfWeek = new Date(todayStr + 'T12:00:00').getDay()
+  const pattern = DAY_SCHEDULE[dayOfWeek]
+
+  const [dismissed, setDismissed] = useState(() => getSuggestDismissed())
+
+  function dismiss(id) {
+    const next = [...dismissed, id]
+    setDismissed(next)
+    setSuggestDismissed(next)
+  }
+
+  const suggested = useMemo(() => {
+    if (!pattern) return []
+    const nameSet = pattern === 'Push' ? new Set(PUSH_EXERCISES) : new Set(PULL_EXERCISES)
+
+    // 1. Exercises the user has added that match the pattern
+    const matched = exercises.filter(ex =>
+      ex.pattern === pattern || nameSet.has(ex.name)
+    )
+
+    // 2. Already logged today
+    const loggedTodayIds = new Set(
+      exercises
+        .filter(ex => (logs[ex.id] || []).some(s => s.date === todayStr))
+        .map(ex => ex.id)
+    )
+
+    // Sort: not-yet-done first, then by days-since (most stale first)
+    return matched
+      .filter(ex => !dismissed.includes(ex.id))
+      .sort((a, b) => {
+        const aDone = loggedTodayIds.has(a.id) ? 1 : 0
+        const bDone = loggedTodayIds.has(b.id) ? 1 : 0
+        if (aDone !== bDone) return aDone - bDone
+        return daysSince(((logs[b.id] || []).slice(-1)[0] || {}).date) -
+               daysSince(((logs[a.id] || []).slice(-1)[0] || {}).date)
+      })
+  }, [exercises, logs, pattern, dismissed, todayStr])
+
+  if (!pattern) return (
+    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '14px 16px' }}>
+      <p style={{ fontSize: 13, color: 'var(--muted)' }}>Sunday — rest day. Recovery is part of the program.</p>
+    </div>
+  )
+
+  if (suggested.length === 0) return (
+    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '14px 16px' }}>
+      <p style={{ fontSize: 13, color: 'var(--muted)' }}>
+        No {pattern} exercises in your library yet.{' '}
+        <span style={{ color: 'var(--accent)' }}>Browse the Library tab to add some.</span>
+      </p>
+    </div>
+  )
+
+  const loggedTodayIds = new Set(
+    exercises
+      .filter(ex => (logs[ex.id] || []).some(s => s.date === todayStr))
+      .map(ex => ex.id)
+  )
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {suggested.map(ex => {
+        const done = loggedTodayIds.has(ex.id)
+        const lastLog = (logs[ex.id] || []).slice(-1)[0]
+        const lastMax = lastLog ? Math.max(...lastLog.sets.map(s => s.weight)) : null
+        return (
+          <div key={ex.id} style={{
+            background: done ? 'rgba(71,255,184,0.05)' : 'var(--surface)',
+            border: `1px solid ${done ? 'rgba(71,255,184,0.25)' : 'var(--border)'}`,
+            borderRadius: 10,
+            padding: '12px 14px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+          }}>
+            {/* Done checkmark */}
+            <div style={{
+              width: 20, height: 20, borderRadius: '50%', flexShrink: 0,
+              background: done ? '#47ffb8' : 'var(--surface2)',
+              border: `1px solid ${done ? '#47ffb8' : 'var(--border)'}`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              {done && <span style={{ fontSize: 10, color: '#0b0b0d', fontWeight: 700 }}>✓</span>}
+            </div>
+
+            {/* Info */}
+            <div style={{ flex: 1, minWidth: 0, cursor: 'pointer' }} onClick={() => onSelect(ex)}>
+              <p style={{ fontWeight: 500, fontSize: 14, marginBottom: 2, opacity: done ? 0.6 : 1 }}>{ex.name}</p>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {ex.muscles && ex.muscles.slice(0, 2).map(m => (
+                  <span key={m} style={{ fontSize: 10, fontFamily: 'DM Mono', color: 'var(--muted)' }}>{m}</span>
+                ))}
+                {lastMax !== null && (
+                  <span style={{ fontSize: 10, fontFamily: 'DM Mono', color: 'var(--text2)' }}>
+                    last: {lastMax}{ex.unit}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Actions */}
+            {!done && onLogToday && (
+              <button onClick={() => onLogToday(ex)} style={{
+                background: 'rgba(232,255,71,0.12)',
+                border: '1px solid rgba(232,255,71,0.3)',
+                color: 'var(--accent)',
+                borderRadius: 6,
+                padding: '4px 10px',
+                fontSize: 11,
+                fontFamily: 'DM Mono',
+                flexShrink: 0,
+                whiteSpace: 'nowrap',
+              }}>
+                + Log
+              </button>
+            )}
+            <button onClick={() => dismiss(ex.id)} title="Dismiss" style={{
+              background: 'transparent', border: 'none', color: 'var(--muted)',
+              padding: '4px 6px', fontSize: 14, flexShrink: 0,
+            }}>×</button>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+/* ── My Day ── */
+function MyDay({ exercises, logs, onSelect, onLogToday }) {
+  const todayStr = isoToday()
+
+  const [quickLogEx, setQuickLogEx] = useState(null)
 
   const todaySessions = useMemo(() => {
     const out = []
@@ -231,6 +440,19 @@ function MyDay({ exercises, logs, onSelect }) {
         </>
       )}
 
+      {/* Suggested workouts */}
+      <SectionHeader>
+        {DAY_SCHEDULE[new Date(todayStr + 'T12:00:00').getDay()]
+          ? `Suggested · ${DAY_SCHEDULE[new Date(todayStr + 'T12:00:00').getDay()]} Day`
+          : 'Suggested Workouts'}
+      </SectionHeader>
+      <SuggestedWorkouts
+        exercises={exercises}
+        logs={logs}
+        onSelect={onSelect}
+        onLogToday={ex => setQuickLogEx(ex)}
+      />
+
       {/* Today's sessions */}
       <SectionHeader>Today's Work</SectionHeader>
       {todaySessions.length === 0 ? (
@@ -283,6 +505,16 @@ function MyDay({ exercises, logs, onSelect }) {
             )}
           </div>
         </>
+      )}
+
+      {/* Quick-log modal triggered from suggestions */}
+      {quickLogEx && (
+        <QuickLogFromDashboard
+          ex={quickLogEx}
+          lastSession={(logs[quickLogEx.id] || []).slice(-1)[0] || null}
+          onSave={entry => { onLogToday && onLogToday(quickLogEx.id, entry); setQuickLogEx(null) }}
+          onCancel={() => setQuickLogEx(null)}
+        />
       )}
     </div>
   )
@@ -508,7 +740,7 @@ function MyWeek({ exercises, logs, onSelect }) {
 }
 
 /* ── Dashboard root ── */
-export default function Dashboard({ exercises, logs, onSelect, onDelete, onAdd }) {
+export default function Dashboard({ exercises, logs, onSelect, onDelete, onAdd, onLogToday }) {
   const [tab, setTab] = useState('day')
 
   const staleCount = useMemo(() =>
@@ -550,7 +782,7 @@ export default function Dashboard({ exercises, logs, onSelect, onDelete, onAdd }
       </div>
 
       {tab === 'day' && (
-        <MyDay exercises={exercises} logs={logs} onSelect={onSelect} />
+        <MyDay exercises={exercises} logs={logs} onSelect={onSelect} onLogToday={onLogToday} />
       )}
 
       {tab === 'week' && (

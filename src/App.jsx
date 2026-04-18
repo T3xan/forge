@@ -144,6 +144,7 @@ export default function App() {
           onSelect={selectExercise}
           onDelete={deleteExercise}
           onAdd={() => { setView('exercises') }}
+          onLogToday={logToday}
         />
       )}
 
