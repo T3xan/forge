@@ -4,6 +4,7 @@ import Dashboard from './views/Dashboard'
 import Exercises from './views/Exercises'
 import Log from './views/Log'
 import Library from './views/Library'
+import Cardio from './views/Cardio'
 
 export default function App() {
   const [data, setData] = useState(() => {
@@ -85,6 +86,7 @@ export default function App() {
     { key: 'dashboard', label: 'Dashboard' },
     { key: 'exercises', label: 'Exercises' },
     { key: 'library', label: 'Library' },
+    { key: 'cardio', label: 'Cardio' },
     { key: 'log', label: selectedEx ? selectedEx.name : 'Log' },
   ]
 
@@ -168,6 +170,8 @@ export default function App() {
           }}
         />
       )}
+
+      {view === 'cardio' && <Cardio />}
 
       {view === 'log' && (
         <Log
