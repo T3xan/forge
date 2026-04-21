@@ -15,6 +15,7 @@
   --text: #f0ede6;
   --text2: #a0a0b4;
   --text3: #606070;
+  --nav-h: 56px;
 }
 
 html, body { height: 100%; }
@@ -27,6 +28,7 @@ body {
   line-height: 1.5;
   min-height: 100vh;
   overflow-x: hidden;
+  -webkit-tap-highlight-color: transparent;
 }
 
 body::before {
@@ -43,6 +45,7 @@ body::before {
 
 #root { position: relative; z-index: 1; }
 
+/* ── Inputs ── */
 input, textarea, select {
   background: var(--surface2);
   border: 1px solid var(--border);
@@ -50,7 +53,7 @@ input, textarea, select {
   border-radius: 8px;
   padding: 10px 14px;
   font-family: 'DM Sans', sans-serif;
-  font-size: 14px;
+  font-size: 16px; /* 16px prevents iOS zoom */
   width: 100%;
   outline: none;
   transition: border-color 0.15s, background 0.15s;
@@ -63,7 +66,15 @@ input:focus, textarea:focus, select:focus {
 }
 input::placeholder, textarea::placeholder { color: var(--muted); }
 
-button { cursor: pointer; font-family: 'DM Sans', sans-serif; border: none; border-radius: 8px; transition: all 0.15s; }
+/* ── Buttons ── */
+button {
+  cursor: pointer;
+  font-family: 'DM Sans', sans-serif;
+  border: none;
+  border-radius: 8px;
+  transition: all 0.15s;
+  min-height: 36px; /* touch target */
+}
 button:active { transform: scale(0.97); }
 
 .btn-primary {
@@ -91,9 +102,11 @@ button:active { transform: scale(0.97); }
   padding: 4px 9px;
   font-size: 15px;
   border-radius: 6px;
+  min-height: 36px;
 }
 .btn-danger:hover { color: var(--danger); background: rgba(255,77,77,0.08); }
 
+/* ── Card ── */
 .card {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -101,6 +114,7 @@ button:active { transform: scale(0.97); }
   padding: 18px 20px;
 }
 
+/* ── Type ── */
 .label {
   font-family: 'DM Mono', monospace;
   font-size: 10px;
@@ -127,11 +141,85 @@ button:active { transform: scale(0.97); }
 
 .mono { font-family: 'DM Mono', monospace; }
 
+/* ── Scrollbar ── */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
 
+/* ── Animations ── */
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.3; }
+}
+
+/* ─────────────────────────────────────────
+   MOBILE NAV — bottom tab bar on small screens
+   ───────────────────────────────────────── */
+.bottom-nav {
+  display: none;
+}
+
+@media (max-width: 600px) {
+  /* Hide top nav, show bottom bar */
+  .top-nav { display: none !important; }
+
+  .bottom-nav {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 50;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
+    gap: 2px;
+  }
+
+  .bottom-nav button {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    padding: 6px 4px;
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    min-height: 48px;
+    font-size: 10px;
+    font-family: 'DM Mono', monospace;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    transition: color 0.15s, background 0.15s;
+  }
+
+  .bottom-nav button.active {
+    color: var(--accent);
+    background: rgba(232,255,71,0.08);
+  }
+
+  .bottom-nav button svg { flex-shrink: 0; }
+
+  /* Body padding so content clears bottom bar */
+  #root > div { padding-bottom: calc(80px + env(safe-area-inset-bottom)) !important; }
+
+  /* Tighter card padding on mobile */
+  .card { padding: 14px 14px; }
+
+  /* Stack 3-col grids to 2-col on mobile */
+  .grid-3 { grid-template-columns: repeat(2, 1fr) !important; }
+
+  /* Full-width forms */
+  .form-grid-2 { grid-template-columns: 1fr !important; }
+
+  /* Larger touch targets */
+  input, textarea { font-size: 16px; min-height: 44px; }
+
+  /* Header tightening */
+  .forge-header { padding: 16px 0 12px !important; }
+
+  /* Page top padding since no top nav */
+  section { padding-top: 16px !important; }
 }

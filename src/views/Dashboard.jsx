@@ -1,3 +1,4 @@
+import { loadCardio, secondsToPace, daysSinceCardio } from '../cardioUtils'
 import { useState, useMemo } from 'react'
 import Icon from '../components/Icon'
 import ExerciseRow from '../components/ExerciseRow'
@@ -521,7 +522,7 @@ function MyDay({ exercises, logs, onSelect, onLogToday }) {
 }
 
 /* ── My Week ── */
-function MyWeek({ exercises, logs, onSelect }) {
+function MyWeek({ exercises, logs, onSelect, cardioData, onGoCardio }) {
   const weekDays = useMemo(() => daysOfCurrentWeek(), [])
   const todayStr = isoToday()
   const weekStart = weekDays[0]
@@ -620,6 +621,32 @@ function MyWeek({ exercises, logs, onSelect }) {
   }, [exercises, logs, lastWeekStart, lastWeekEnd])
 
   const volDelta = lastWeekVol > 0 ? Math.round(((weekVol - lastWeekVol) / lastWeekVol) * 100) : null
+
+
+  // Cardio this week
+  const weekRuns = useMemo(() => {
+    const runs = cardioData?.runs || []
+    return runs.filter(r => r.date >= weekStart && r.date <= weekDays[6])
+  }, [cardioData, weekStart, weekDays])
+
+  const weekRows = useMemo(() => {
+    const rows = cardioData?.rows || []
+    return rows.filter(r => r.date >= weekStart && r.date <= weekDays[6])
+  }, [cardioData, weekStart, weekDays])
+
+  const totalRunMiles = useMemo(() => weekRuns.reduce((a, r) => a + (r.miles || 0), 0), [weekRuns])
+  const totalRowMeters = useMemo(() => weekRows.reduce((a, r) => a + (r.meters || 0), 0), [weekRows])
+  const totalCardioLoad = useMemo(() =>
+    [...weekRuns, ...weekRows].reduce((a, r) => a + (r.loadScore || 0), 0)
+  , [weekRuns, weekRows])
+
+  const bestRunPace = useMemo(() =>
+    weekRuns.length ? Math.min(...weekRuns.map(r => r.paceSecs)) : null
+  , [weekRuns])
+
+  const bestRowSplit = useMemo(() =>
+    weekRows.length ? Math.min(...weekRows.map(r => r.splitSecs)) : null
+  , [weekRows])
 
   // Days with sessions sorted for display
   const activeDaysSorted = Object.keys(logsByDate).sort().reverse()
@@ -735,12 +762,57 @@ function MyWeek({ exercises, logs, onSelect }) {
       {weekSessions.length === 0 && (
         <EmptyState msg="No sessions logged this week yet." />
       )}
+      {/* Cardio this week */}
+      {(weekRuns.length > 0 || weekRows.length > 0) && (
+        <>
+          <SectionHeader>Cardio This Week</SectionHeader>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, marginBottom: 8 }} className="grid-3">
+            {weekRuns.length > 0 && (
+              <StatTile label="🏃 Miles Run" value={`${totalRunMiles.toFixed(1)}mi`}
+                sub={bestRunPace ? `best ${secondsToPace(bestRunPace)}/mi` : undefined} accent />
+            )}
+            {weekRows.length > 0 && (
+              <StatTile label="🚣 Meters Rowed" value={totalRowMeters >= 1000 ? `${(totalRowMeters/1000).toFixed(1)}k` : totalRowMeters}
+                sub={bestRowSplit ? `best ${secondsToPace(bestRowSplit)}/500m` : undefined} color="#60a5fa" />
+            )}
+            {totalCardioLoad > 0 && (
+              <StatTile label="Cardio Load" value={totalCardioLoad.toFixed(1)} color="#a78bfa"
+                sub={`${weekRuns.length + weekRows.length} session${weekRuns.length + weekRows.length !== 1 ? 's' : ''}`} />
+            )}
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {weekRuns.map(r => (
+              <div key={r.id} onClick={onGoCardio} style={{
+                background: 'var(--surface)', border: '1px solid var(--border)',
+                borderRadius: 8, padding: '8px 12px', cursor: 'pointer', fontSize: 12,
+                display: 'flex', gap: 10, alignItems: 'center',
+              }}>
+                <span style={{ color: '#4ade80', fontFamily: 'DM Mono' }}>{r.miles}mi</span>
+                <span style={{ color: 'var(--muted)', fontFamily: 'DM Mono' }}>{secondsToPace(r.paceSecs)}/mi</span>
+                <span style={{ color: '#a78bfa', fontFamily: 'DM Mono' }}>RPE {r.rpe}</span>
+              </div>
+            ))}
+            {weekRows.map(r => (
+              <div key={r.id} onClick={onGoCardio} style={{
+                background: 'var(--surface)', border: '1px solid var(--border)',
+                borderRadius: 8, padding: '8px 12px', cursor: 'pointer', fontSize: 12,
+                display: 'flex', gap: 10, alignItems: 'center',
+              }}>
+                <span style={{ color: '#60a5fa', fontFamily: 'DM Mono' }}>{r.meters.toLocaleString()}m</span>
+                <span style={{ color: 'var(--muted)', fontFamily: 'DM Mono' }}>{secondsToPace(r.splitSecs)}/500m</span>
+                <span style={{ color: '#a78bfa', fontFamily: 'DM Mono' }}>RPE {r.rpe}</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
     </div>
   )
 }
 
 /* ── Dashboard root ── */
-export default function Dashboard({ exercises, logs, onSelect, onDelete, onAdd, onLogToday }) {
+export default function Dashboard({ exercises, logs, cardioData, onSelect, onDelete, onAdd, onLogToday, onGoCardio }) {
   const [tab, setTab] = useState('day')
 
   const staleCount = useMemo(() =>
@@ -786,7 +858,7 @@ export default function Dashboard({ exercises, logs, onSelect, onDelete, onAdd, 
       )}
 
       {tab === 'week' && (
-        <MyWeek exercises={exercises} logs={logs} onSelect={onSelect} />
+        <MyWeek exercises={exercises} logs={logs} onSelect={onSelect} cardioData={cardioData} onGoCardio={onGoCardio} />
       )}
 
       {tab === 'exercises' && (

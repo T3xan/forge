@@ -1,5 +1,7 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect } from 'react'
 import { loadData, saveData, daysSince } from './utils'
+import { loadCardio } from './cardioUtils'
+import { useNotifications } from './useNotifications'
 import Dashboard from './views/Dashboard'
 import Exercises from './views/Exercises'
 import Log from './views/Log'
@@ -14,6 +16,19 @@ export default function App() {
   const [view, setView] = useState('dashboard')
   const [selectedEx, setSelectedEx] = useState(null)
   const [prModal, setPrModal] = useState(null)
+
+  const [cardioData, setCardioData] = useState(() => loadCardio())
+
+  // Sync cardioData when localStorage changes (cross-tab)
+  useEffect(() => {
+    function onStorage(e) {
+      if (e.key === 'forge_cardio_v1') setCardioData(loadCardio())
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+  }, [])
+
+  const notif = useNotifications(data.exercises, data.logs)
 
   const persist = useCallback((next) => { setData(next); saveData(next) }, [])
 
@@ -94,7 +109,7 @@ export default function App() {
     <div style={{ maxWidth: 680, margin: '0 auto', padding: '0 16px 100px', minHeight: '100vh' }}>
 
       {/* Header */}
-      <header style={{ padding: '28px 0 24px', display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', borderBottom: '1px solid var(--border)' }}>
+      <header className="forge-header" style={{ padding: '28px 0 24px', display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', borderBottom: '1px solid var(--border)' }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
           <span style={{ fontFamily: 'Unbounded', fontSize: 24, fontWeight: 700, color: 'var(--accent)', letterSpacing: '-0.5px' }}>FORGE</span>
           <span className="label">Workout Tracker</span>
@@ -107,8 +122,8 @@ export default function App() {
         )}
       </header>
 
-      {/* Nav */}
-      <nav style={{ display: 'flex', gap: 4, padding: '16px 0', borderBottom: '1px solid var(--border)' }}>
+      {/* Top Nav — hidden on mobile via CSS */}
+      <nav className="top-nav" style={{ display: 'flex', gap: 4, padding: '16px 0', borderBottom: '1px solid var(--border)', alignItems: 'center' }}>
         {navItems.map(({ key, label }) => {
           const active = view === key
           return (
@@ -136,6 +151,38 @@ export default function App() {
             </button>
           )
         })}
+        {/* Notification bell */}
+        <button onClick={() => notif.supported && notif.toggleNotifications(!notif.enabled)} title={notif.enabled ? 'Notifications on' : 'Enable notifications'} style={{
+          marginLeft: 'auto', background: 'transparent', border: '1px solid var(--border)',
+          color: notif.enabled ? 'var(--accent)' : 'var(--muted)',
+          borderRadius: 8, padding: '6px 10px', fontSize: 14, display: 'flex', alignItems: 'center', gap: 5, minHeight: 36,
+        }}>
+          {notif.enabled ? '🔔' : '🔕'}
+          {notif.enabled && notif.staleCount > 0 && (
+            <span style={{ background: 'var(--danger)', color: '#fff', borderRadius: 8, padding: '0 5px', fontSize: 9, fontWeight: 700 }}>{notif.staleCount}</span>
+          )}
+        </button>
+      </nav>
+
+      {/* Bottom Nav — mobile only, shown via CSS */}
+      <nav className="bottom-nav">
+        {[
+          { key: 'dashboard', label: 'Home',      icon: '⊞' },
+          { key: 'exercises', label: 'Exercises', icon: '⚡' },
+          { key: 'library',   label: 'Library',   icon: '☰' },
+          { key: 'cardio',    label: 'Cardio',    icon: '♡' },
+          { key: 'log',       label: 'Log',       icon: '+' },
+        ].map(({ key, label, icon }) => (
+          <button key={key} onClick={() => setView(key)} className={view === key ? 'active' : ''} style={{ position: 'relative' }}>
+            <span style={{ fontSize: 18, lineHeight: 1 }}>{icon}</span>
+            <span>{label}</span>
+            {key === 'dashboard' && staleCount > 0 && (
+              <span style={{ position: 'absolute', top: 4, right: '50%', transform: 'translateX(8px)', background: 'var(--danger)', color: '#fff', borderRadius: 8, padding: '0 4px', fontSize: 8, fontWeight: 700 }}>
+                {staleCount}
+              </span>
+            )}
+          </button>
+        ))}
       </nav>
 
       {/* Views */}
@@ -143,10 +190,12 @@ export default function App() {
         <Dashboard
           exercises={data.exercises}
           logs={data.logs}
+          cardioData={cardioData}
           onSelect={selectExercise}
           onDelete={deleteExercise}
           onAdd={() => { setView('exercises') }}
           onLogToday={logToday}
+          onGoCardio={() => setView('cardio')}
         />
       )}
 
