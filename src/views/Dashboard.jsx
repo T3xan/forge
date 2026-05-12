@@ -208,107 +208,6 @@ function QuickLogFromDashboard({ ex, lastSession, onSave, onCancel }) {
 /* ── Tag colors ── */
 const TAG_COLORS = { A: '#e8ff47', B: '#60a5fa', C: '#f472b6' }
 
-/* ── suggested workouts (A/B/C based) ── */
-function SuggestedWorkouts({ exercises, logs, schedule, onSelect, onLogToday }) {
-  const todayStr = isoToday()
-  const dayOfWeek = new Date(todayStr + 'T12:00:00').getDay()
-  const todayTag = schedule[dayOfWeek] || null
-
-  const loggedTodayIds = useMemo(() => new Set(
-    exercises.filter(ex => (logs[ex.id] || []).some(s => s.date === todayStr)).map(ex => ex.id)
-  ), [exercises, logs, todayStr])
-
-  // Sort: matching tag first, within that undone before done, then alphabetical
-  const sorted = useMemo(() => {
-    if (!exercises.length) return []
-    return [...exercises].sort((a, b) => {
-      const aMatch = todayTag && a.workoutTag === todayTag ? 0 : 1
-      const bMatch = todayTag && b.workoutTag === todayTag ? 0 : 1
-      if (aMatch !== bMatch) return aMatch - bMatch
-      const aDone = loggedTodayIds.has(a.id) ? 1 : 0
-      const bDone = loggedTodayIds.has(b.id) ? 1 : 0
-      if (aDone !== bDone) return aDone - bDone
-      return a.name.localeCompare(b.name)
-    })
-  }, [exercises, todayTag, loggedTodayIds])
-
-  if (!sorted.length) return (
-    <EmptyState msg="No exercises in your library yet. Add some from the Exercises tab." />
-  )
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      {sorted.map(ex => {
-        const done = loggedTodayIds.has(ex.id)
-        const isMatch = todayTag && ex.workoutTag === todayTag
-        const lastLog = (logs[ex.id] || []).slice(-1)[0]
-        const lastMax = lastLog ? Math.max(...lastLog.sets.map(s => s.weight)) : null
-        const tagCol = ex.workoutTag ? (TAG_COLORS[ex.workoutTag] || 'var(--text2)') : null
-
-        return (
-          <div key={ex.id} style={{
-            background: done ? 'rgba(71,255,184,0.04)' : isMatch ? 'rgba(255,255,255,0.02)' : 'var(--surface)',
-            border: `1px solid ${done ? 'rgba(71,255,184,0.2)' : isMatch ? 'var(--border2)' : 'var(--border)'}`,
-            borderRadius: 10,
-            padding: '11px 14px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            opacity: done ? 0.7 : 1,
-          }}>
-            {/* Done indicator */}
-            <div style={{
-              width: 18, height: 18, borderRadius: '50%', flexShrink: 0,
-              background: done ? '#47ffb8' : 'var(--surface2)',
-              border: `1px solid ${done ? '#47ffb8' : 'var(--border)'}`,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              {done && <span style={{ fontSize: 9, color: '#0b0b0d', fontWeight: 700 }}>✓</span>}
-            </div>
-
-            {/* Tag pill */}
-            {ex.workoutTag && (
-              <span style={{
-                fontSize: 10, fontFamily: 'DM Mono', fontWeight: 700,
-                color: tagCol, background: `${tagCol}18`,
-                border: `1px solid ${tagCol}40`,
-                borderRadius: 4, padding: '1px 6px', flexShrink: 0,
-              }}>{ex.workoutTag}</span>
-            )}
-
-            {/* Info */}
-            <div style={{ flex: 1, minWidth: 0, cursor: 'pointer' }} onClick={() => onSelect(ex)}>
-              <p style={{ fontWeight: 500, fontSize: 13, marginBottom: 1, color: isMatch ? 'var(--text)' : 'var(--text2)' }}>
-                {ex.name}
-              </p>
-              <div style={{ display: 'flex', gap: 8 }}>
-                {ex.muscles && ex.muscles.slice(0, 2).map(m => (
-                  <span key={m} style={{ fontSize: 10, fontFamily: 'DM Mono', color: 'var(--muted)' }}>{m}</span>
-                ))}
-                {lastMax !== null && lastMax > 0 && (
-                  <span style={{ fontSize: 10, fontFamily: 'DM Mono', color: 'var(--text2)' }}>
-                    last: {lastMax}{ex.unit}
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {/* Log button */}
-            {!done && onLogToday && (
-              <button onClick={() => onLogToday(ex)} style={{
-                background: isMatch ? `${TAG_COLORS[todayTag]}18` : 'rgba(255,255,255,0.04)',
-                border: `1px solid ${isMatch ? `${TAG_COLORS[todayTag]}40` : 'var(--border)'}`,
-                color: isMatch ? TAG_COLORS[todayTag] : 'var(--muted)',
-                borderRadius: 6, padding: '4px 10px',
-                fontSize: 11, fontFamily: 'DM Mono', flexShrink: 0,
-              }}>+ Log</button>
-            )}
-          </div>
-        )
-      })}
-    </div>
-  )
-}
 
 /* ── My Day ── */
 function MyDay({ exercises, logs, onSelect, onLogToday, schedule, onUpdateSchedule }) {
@@ -382,35 +281,100 @@ function MyDay({ exercises, logs, onSelect, onLogToday, schedule, onUpdateSchedu
         </>
       )}
 
-      {/* Suggested workouts */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 24, marginBottom: 10 }}>
-        <p className="label" style={{ margin: 0 }}>
-          {(() => {
-            const day = new Date(todayStr + 'T12:00:00').getDay()
-            const tag = schedule[day]
-            return tag ? `Suggested · ${tag} Day` : 'Suggested Workouts'
-          })()}
-        </p>
-        <button onClick={() => setShowSchedule(s => !s)} style={{
-          background: 'transparent', border: '1px solid var(--border)',
-          color: 'var(--muted)', borderRadius: 6, padding: '3px 10px',
-          fontSize: 10, fontFamily: 'DM Mono', letterSpacing: '0.05em',
-        }}>⚙ Schedule</button>
-      </div>
-      {showSchedule && (
-        <ScheduleConfig
-          schedule={schedule}
-          onUpdate={onUpdateSchedule}
-          onClose={() => setShowSchedule(false)}
-        />
-      )}
-      <SuggestedWorkouts
-        exercises={exercises}
-        logs={logs}
-        schedule={schedule}
-        onSelect={onSelect}
-        onLogToday={ex => setQuickLogEx(ex)}
-      />
+      {/* Today's tagged workouts */}
+      {(() => {
+        const dayTag = schedule[new Date(todayStr + 'T12:00:00').getDay()] || null
+        const tagged = dayTag
+          ? exercises
+              .filter(ex => ex.workoutTag === dayTag)
+              .sort((a, b) => {
+                const aDone = (logs[a.id] || []).some(s => s.date === todayStr) ? 1 : 0
+                const bDone = (logs[b.id] || []).some(s => s.date === todayStr) ? 1 : 0
+                return aDone - bDone || a.name.localeCompare(b.name)
+              })
+          : []
+        const tagCol = dayTag ? ({ A: '#e8ff47', B: '#60a5fa', C: '#f472b6' }[dayTag]) : null
+
+        return (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 24, marginBottom: 10 }}>
+              <p className="label" style={{ margin: 0 }}>
+                {dayTag ? `${dayTag} Day` : 'Today'}
+              </p>
+              <button onClick={() => setShowSchedule(s => !s)} style={{
+                background: 'transparent', border: '1px solid var(--border)',
+                color: 'var(--muted)', borderRadius: 6, padding: '3px 10px',
+                fontSize: 10, fontFamily: 'DM Mono', letterSpacing: '0.05em',
+              }}>⚙ Schedule</button>
+            </div>
+
+            {showSchedule && (
+              <ScheduleConfig
+                schedule={schedule}
+                onUpdate={onUpdateSchedule}
+                onClose={() => setShowSchedule(false)}
+              />
+            )}
+
+            {!dayTag ? (
+              <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '14px 16px' }}>
+                <p style={{ fontSize: 13, color: 'var(--muted)' }}>No workout scheduled for today. Configure your week with ⚙ Schedule.</p>
+              </div>
+            ) : tagged.length === 0 ? (
+              <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '14px 16px' }}>
+                <p style={{ fontSize: 13, color: 'var(--muted)' }}>
+                  No exercises tagged <span style={{ color: tagCol, fontFamily: 'DM Mono', fontWeight: 700 }}>{dayTag}</span> yet.
+                  Tag exercises from the Exercises tab.
+                </p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {tagged.map(ex => {
+                  const done = (logs[ex.id] || []).some(s => s.date === todayStr)
+                  const lastLog = (logs[ex.id] || []).slice(-1)[0]
+                  const lastMax = lastLog ? Math.max(...lastLog.sets.map(s => s.weight)) : null
+                  return (
+                    <div key={ex.id} style={{
+                      background: done ? 'rgba(71,255,184,0.04)' : 'var(--surface)',
+                      border: `1px solid ${done ? 'rgba(71,255,184,0.2)' : 'var(--border)'}`,
+                      borderRadius: 10, padding: '11px 14px',
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      opacity: done ? 0.65 : 1,
+                    }}>
+                      <div style={{
+                        width: 18, height: 18, borderRadius: '50%', flexShrink: 0,
+                        background: done ? '#47ffb8' : 'var(--surface2)',
+                        border: `1px solid ${done ? '#47ffb8' : 'var(--border)'}`,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        {done && <span style={{ fontSize: 9, color: '#0b0b0d', fontWeight: 700 }}>✓</span>}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0, cursor: 'pointer' }} onClick={() => onSelect(ex)}>
+                        <p style={{ fontWeight: 500, fontSize: 13, marginBottom: 2 }}>{ex.name}</p>
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                          {(ex.muscles || []).slice(0, 2).map(m => (
+                            <span key={m} style={{ fontSize: 10, fontFamily: 'DM Mono', color: 'var(--muted)' }}>{m}</span>
+                          ))}
+                          {lastMax !== null && lastMax > 0 && (
+                            <span style={{ fontSize: 10, fontFamily: 'DM Mono', color: 'var(--text2)' }}>last: {lastMax}{ex.unit}</span>
+                          )}
+                        </div>
+                      </div>
+                      {!done && (
+                        <button onClick={() => setQuickLogEx(ex)} style={{
+                          background: `${tagCol}18`, border: `1px solid ${tagCol}40`,
+                          color: tagCol, borderRadius: 6, padding: '4px 10px',
+                          fontSize: 11, fontFamily: 'DM Mono', flexShrink: 0,
+                        }}>+ Log</button>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </>
+        )
+      })()}
 
       {/* Today's sessions */}
       <SectionHeader>Today's Work</SectionHeader>
