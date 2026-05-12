@@ -69,20 +69,21 @@ export function useExerciseForm(initial = {}) {
   const [equipment, setEquipment] = useState(initial.equipment || '')
   const [muscles, setMuscles]     = useState(initial.muscles || [])
   const [description, setDesc]    = useState(initial.description || '')
+  const [workoutTag, setWorkoutTag] = useState(initial.workoutTag || null)
 
   function toggleMuscle(m) {
     setMuscles(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m])
   }
 
   function toExercise() {
-    return { name: name.trim(), unit, pattern, difficulty, equipment, muscles, description: description.trim() }
+    return { name: name.trim(), unit, pattern, difficulty, equipment, muscles, description: description.trim(), workoutTag }
   }
 
   function isValid() { return name.trim().length > 0 }
 
   return { name, setName, unit, setUnit, pattern, setPattern, difficulty, setDiff,
            equipment, setEquipment, muscles, toggleMuscle, description, setDesc,
-           toExercise, isValid }
+           workoutTag, setWorkoutTag, toExercise, isValid }
 }
 
 export default function ExerciseForm({ initial = {}, onSave, onCancel, saveLabel = 'Add Exercise' }) {
@@ -167,6 +168,33 @@ export default function ExerciseForm({ initial = {}, onSave, onCancel, saveLabel
               color="var(--text2)"
               onClick={() => form.toggleMuscle(m)} />
           ))}
+        </div>
+      </Section>
+
+      {/* Workout Tag */}
+      <Section label="Workout Tag (A / B / C)">
+        <div style={{ display: 'flex', gap: 8 }}>
+          {['A', 'B', 'C'].map(tag => {
+            const colors = { A: '#e8ff47', B: '#60a5fa', C: '#f472b6' }
+            const col = colors[tag]
+            const sel = form.workoutTag === tag
+            return (
+              <button key={tag} onClick={() => form.setWorkoutTag(sel ? null : tag)} style={{
+                flex: 1, padding: '9px 4px', fontSize: 15, fontFamily: 'DM Mono', fontWeight: 700,
+                background: sel ? `${col}20` : 'var(--surface2)',
+                color: sel ? col : 'var(--muted)',
+                border: `1px solid ${sel ? col : 'var(--border)'}`,
+                borderRadius: 7,
+              }}>{tag}</button>
+            )
+          })}
+          {form.workoutTag && (
+            <button onClick={() => form.setWorkoutTag(null)} style={{
+              padding: '9px 12px', fontSize: 12, fontFamily: 'DM Mono',
+              background: 'transparent', color: 'var(--muted)',
+              border: '1px solid var(--border)', borderRadius: 7,
+            }}>Clear</button>
+          )}
         </div>
       </Section>
 

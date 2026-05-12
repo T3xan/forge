@@ -40,7 +40,6 @@ export default function ExerciseRow({ ex, logs, onClick, onDelete, onEdit, onLog
   const [hovered, setHovered] = useState(false)
   const last = logs.length ? logs[logs.length - 1] : null
   const days = daysSince(last?.date)
-  const stale = days >= 5
   const pr = logs.length ? Math.max(...logs.flatMap(l => l.sets.map(s => s.weight))) : null
 
   const diffStyle = ex.difficulty ? DIFFICULTY_STYLE[ex.difficulty] : null
@@ -50,7 +49,7 @@ export default function ExerciseRow({ ex, logs, onClick, onDelete, onEdit, onLog
     <div
       style={{
         background: hovered ? 'var(--surface2)' : 'var(--surface)',
-        border: `1px solid ${stale ? 'rgba(255,77,77,0.35)' : 'var(--border)'}`,
+        border: '1px solid var(--border)',
         borderRadius: 10,
         padding: '14px 16px',
         display: 'flex',
@@ -65,13 +64,27 @@ export default function ExerciseRow({ ex, logs, onClick, onDelete, onEdit, onLog
       <div style={{ flex: 1, minWidth: 0 }} onClick={onClick}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 5 }}>
           <span style={{ fontWeight: 500, fontSize: 15 }}>{ex.name}</span>
-          {stale && (
-            <span className="badge badge-danger">
-              {days === Infinity ? 'NEVER' : '5+ DAYS'}
-            </span>
-          )}
+
         </div>
 
+        {ex.workoutTag && (
+          <div style={{ marginBottom: 5 }}>
+            {(() => {
+              const colors = { A: '#e8ff47', B: '#60a5fa', C: '#f472b6' }
+              const col = colors[ex.workoutTag] || 'var(--text2)'
+              return (
+                <span style={{
+                  fontSize: 10, fontFamily: 'DM Mono', fontWeight: 700,
+                  color: col, background: `${col}18`,
+                  border: `1px solid ${col}40`,
+                  borderRadius: 4, padding: '1px 7px',
+                }}>
+                  {ex.workoutTag}
+                </span>
+              )
+            })()}
+          </div>
+        )}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 5 }}>
           <MetaTag label={ex.unit} />
           {ex.pattern && <MetaTag label={ex.pattern} color="var(--accent)" bg="rgba(232,255,71,0.08)" border="rgba(232,255,71,0.2)" />}

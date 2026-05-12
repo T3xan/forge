@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useEffect } from 'react'
-import { loadData, saveData, daysSince } from './utils'
+import { loadData, saveData, daysSince, loadSchedule, saveSchedule } from './utils'
 import { loadCardio } from './cardioUtils'
 import { useNotifications } from './useNotifications'
 import Dashboard from './views/Dashboard'
@@ -18,6 +18,7 @@ export default function App() {
   const [prModal, setPrModal] = useState(null)
 
   const [cardioData, setCardioData] = useState(() => loadCardio())
+  const [schedule, setSchedule] = useState(() => loadSchedule())
 
   // Sync cardioData when localStorage changes (cross-tab)
   useEffect(() => {
@@ -39,20 +40,21 @@ export default function App() {
     }).length
   }, [data])
 
-  function addExercise({ name, unit, pattern, equipment, difficulty, muscles, description }) {
+  function addExercise({ name, unit, pattern, equipment, difficulty, muscles, description, workoutTag }) {
     const ex = {
       id: Date.now().toString(), name, unit,
       pattern: pattern || '', equipment: equipment || '',
       difficulty: difficulty || '', muscles: muscles || [],
-      description: description || '',
+      description: description || '', workoutTag: workoutTag || null,
       createdAt: new Date().toISOString(),
     }
     persist({ ...data, exercises: [...data.exercises, ex] })
   }
 
-  function editExercise(id, { name, unit, pattern, equipment, difficulty, muscles, description }) {
+  function editExercise(id, { name, unit, pattern, equipment, difficulty, muscles, description, workoutTag }) {
     const updates = { name, unit, pattern: pattern || '', equipment: equipment || '',
-                      difficulty: difficulty || '', muscles: muscles || [], description: description || '' }
+                      difficulty: difficulty || '', muscles: muscles || [], description: description || '',
+                      workoutTag: workoutTag || null }
     const exercises = data.exercises.map(e => e.id === id ? { ...e, ...updates } : e)
     persist({ ...data, exercises })
     if (selectedEx?.id === id) setSelectedEx(prev => ({ ...prev, ...updates }))
@@ -64,6 +66,11 @@ export default function App() {
     const logs = { ...data.logs }; delete logs[id]
     persist({ ...data, exercises, logs })
     if (selectedEx?.id === id) { setSelectedEx(null); setView('dashboard') }
+  }
+
+  function updateSchedule(newSchedule) {
+    setSchedule(newSchedule)
+    saveSchedule(newSchedule)
   }
 
   function logToday(exerciseId, entry) {
@@ -114,12 +121,7 @@ export default function App() {
           <span style={{ fontFamily: 'Unbounded', fontSize: 24, fontWeight: 700, color: 'var(--accent)', letterSpacing: '-0.5px' }}>FORGE</span>
           <span className="label">Workout Tracker</span>
         </div>
-        {staleCount > 0 && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--danger)', fontSize: 12 }}>
-            <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--danger)', animation: 'pulse 2s infinite' }} />
-            {staleCount} need attention
-          </div>
-        )}
+
       </header>
 
       {/* Top Nav — hidden on mobile via CSS */}
@@ -143,11 +145,7 @@ export default function App() {
               whiteSpace: 'nowrap',
             }}>
               {label}
-              {key === 'dashboard' && staleCount > 0 && (
-                <span style={{ marginLeft: 6, background: active ? '#0b0b0d' : 'var(--danger)', color: '#fff', borderRadius: 10, padding: '1px 5px', fontSize: 9, fontWeight: 700 }}>
-                  {staleCount}
-                </span>
-              )}
+
             </button>
           )
         })}
@@ -158,9 +156,7 @@ export default function App() {
           borderRadius: 8, padding: '6px 10px', fontSize: 14, display: 'flex', alignItems: 'center', gap: 5, minHeight: 36,
         }}>
           {notif.enabled ? '🔔' : '🔕'}
-          {notif.enabled && notif.staleCount > 0 && (
-            <span style={{ background: 'var(--danger)', color: '#fff', borderRadius: 8, padding: '0 5px', fontSize: 9, fontWeight: 700 }}>{notif.staleCount}</span>
-          )}
+
         </button>
       </nav>
 
@@ -176,11 +172,7 @@ export default function App() {
           <button key={key} onClick={() => setView(key)} className={view === key ? 'active' : ''} style={{ position: 'relative' }}>
             <span style={{ fontSize: 18, lineHeight: 1 }}>{icon}</span>
             <span>{label}</span>
-            {key === 'dashboard' && staleCount > 0 && (
-              <span style={{ position: 'absolute', top: 4, right: '50%', transform: 'translateX(8px)', background: 'var(--danger)', color: '#fff', borderRadius: 8, padding: '0 4px', fontSize: 8, fontWeight: 700 }}>
-                {staleCount}
-              </span>
-            )}
+
           </button>
         ))}
       </nav>
@@ -195,6 +187,8 @@ export default function App() {
           onDelete={deleteExercise}
           onAdd={() => { setView('exercises') }}
           onLogToday={logToday}
+          schedule={schedule}
+          onUpdateSchedule={updateSchedule}
           onGoCardio={() => setView('cardio')}
         />
       )}

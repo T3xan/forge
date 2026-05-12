@@ -1,3 +1,4 @@
+import ScheduleConfig from '../components/ScheduleConfig'
 import { loadCardio, secondsToPace, daysSinceCardio } from '../cardioUtils'
 import { useState, useMemo } from 'react'
 import Icon from '../components/Icon'
@@ -204,131 +205,87 @@ function QuickLogFromDashboard({ ex, lastSession, onSave, onCancel }) {
   )
 }
 
-/* ── suggested workouts ── */
-// Push: Mon(1) Wed(3) Fri(5)  Pull: Tue(2) Thu(4) Sat(6)  Sun(0): rest
-const DAY_SCHEDULE = { 0: null, 1: 'Push', 2: 'Pull', 3: 'Push', 4: 'Pull', 5: 'Push', 6: 'Pull' }
+/* ── Tag colors ── */
+const TAG_COLORS = { A: '#e8ff47', B: '#60a5fa', C: '#f472b6' }
 
-const PUSH_EXERCISES = [
-  'Barbell Bench Press', 'Incline Barbell Press', 'Dumbbell Bench Press',
-  'Overhead Press (OHP)', 'Dumbbell Shoulder Press', 'Cable Lateral Raise',
-  'Dumbbell Lateral Raise', 'Cable Chest Fly', 'Close-Grip Bench Press',
-  'Tricep Pushdown', 'Skull Crusher',
-]
-const PULL_EXERCISES = [
-  'Barbell Row', 'Dumbbell Row', 'Lat Pulldown', 'Seated Cable Row',
-  'Cable Face Pull', 'Chest-Supported Row', 'EZ Bar Curl',
-  'Incline Dumbbell Curl', 'Hammer Curl', 'Preacher Curl',
-]
-
-const DISMISSED_KEY = 'forge_suggestions_dismissed'
-
-function getSuggestDismissed() {
-  try {
-    const raw = JSON.parse(localStorage.getItem(DISMISSED_KEY) || '{}')
-    return raw.date === today() ? raw.ids || [] : []
-  } catch { return [] }
-}
-
-function setSuggestDismissed(ids) {
-  localStorage.setItem(DISMISSED_KEY, JSON.stringify({ date: today(), ids }))
-}
-
-function SuggestedWorkouts({ exercises, logs, onSelect, onLogToday }) {
+/* ── suggested workouts (A/B/C based) ── */
+function SuggestedWorkouts({ exercises, logs, schedule, onSelect, onLogToday }) {
   const todayStr = isoToday()
   const dayOfWeek = new Date(todayStr + 'T12:00:00').getDay()
-  const pattern = DAY_SCHEDULE[dayOfWeek]
+  const todayTag = schedule[dayOfWeek] || null
 
-  const [dismissed, setDismissed] = useState(() => getSuggestDismissed())
+  const loggedTodayIds = useMemo(() => new Set(
+    exercises.filter(ex => (logs[ex.id] || []).some(s => s.date === todayStr)).map(ex => ex.id)
+  ), [exercises, logs, todayStr])
 
-  function dismiss(id) {
-    const next = [...dismissed, id]
-    setDismissed(next)
-    setSuggestDismissed(next)
-  }
+  // Sort: matching tag first, within that undone before done, then alphabetical
+  const sorted = useMemo(() => {
+    if (!exercises.length) return []
+    return [...exercises].sort((a, b) => {
+      const aMatch = todayTag && a.workoutTag === todayTag ? 0 : 1
+      const bMatch = todayTag && b.workoutTag === todayTag ? 0 : 1
+      if (aMatch !== bMatch) return aMatch - bMatch
+      const aDone = loggedTodayIds.has(a.id) ? 1 : 0
+      const bDone = loggedTodayIds.has(b.id) ? 1 : 0
+      if (aDone !== bDone) return aDone - bDone
+      return a.name.localeCompare(b.name)
+    })
+  }, [exercises, todayTag, loggedTodayIds])
 
-  const suggested = useMemo(() => {
-    if (!pattern) return []
-    const nameSet = pattern === 'Push' ? new Set(PUSH_EXERCISES) : new Set(PULL_EXERCISES)
-
-    // 1. Exercises the user has added that match the pattern
-    const matched = exercises.filter(ex =>
-      ex.pattern === pattern || nameSet.has(ex.name)
-    )
-
-    // 2. Already logged today
-    const loggedTodayIds = new Set(
-      exercises
-        .filter(ex => (logs[ex.id] || []).some(s => s.date === todayStr))
-        .map(ex => ex.id)
-    )
-
-    // Sort: not-yet-done first, then by days-since (most stale first)
-    return matched
-      .filter(ex => !dismissed.includes(ex.id))
-      .sort((a, b) => {
-        const aDone = loggedTodayIds.has(a.id) ? 1 : 0
-        const bDone = loggedTodayIds.has(b.id) ? 1 : 0
-        if (aDone !== bDone) return aDone - bDone
-        return daysSince(((logs[b.id] || []).slice(-1)[0] || {}).date) -
-               daysSince(((logs[a.id] || []).slice(-1)[0] || {}).date)
-      })
-  }, [exercises, logs, pattern, dismissed, todayStr])
-
-  if (!pattern) return (
-    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '14px 16px' }}>
-      <p style={{ fontSize: 13, color: 'var(--muted)' }}>Sunday — rest day. Recovery is part of the program.</p>
-    </div>
-  )
-
-  if (suggested.length === 0) return (
-    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '14px 16px' }}>
-      <p style={{ fontSize: 13, color: 'var(--muted)' }}>
-        No {pattern} exercises in your library yet.{' '}
-        <span style={{ color: 'var(--accent)' }}>Browse the Library tab to add some.</span>
-      </p>
-    </div>
-  )
-
-  const loggedTodayIds = new Set(
-    exercises
-      .filter(ex => (logs[ex.id] || []).some(s => s.date === todayStr))
-      .map(ex => ex.id)
+  if (!sorted.length) return (
+    <EmptyState msg="No exercises in your library yet. Add some from the Exercises tab." />
   )
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      {suggested.map(ex => {
+      {sorted.map(ex => {
         const done = loggedTodayIds.has(ex.id)
+        const isMatch = todayTag && ex.workoutTag === todayTag
         const lastLog = (logs[ex.id] || []).slice(-1)[0]
         const lastMax = lastLog ? Math.max(...lastLog.sets.map(s => s.weight)) : null
+        const tagCol = ex.workoutTag ? (TAG_COLORS[ex.workoutTag] || 'var(--text2)') : null
+
         return (
           <div key={ex.id} style={{
-            background: done ? 'rgba(71,255,184,0.05)' : 'var(--surface)',
-            border: `1px solid ${done ? 'rgba(71,255,184,0.25)' : 'var(--border)'}`,
+            background: done ? 'rgba(71,255,184,0.04)' : isMatch ? 'rgba(255,255,255,0.02)' : 'var(--surface)',
+            border: `1px solid ${done ? 'rgba(71,255,184,0.2)' : isMatch ? 'var(--border2)' : 'var(--border)'}`,
             borderRadius: 10,
-            padding: '12px 14px',
+            padding: '11px 14px',
             display: 'flex',
             alignItems: 'center',
             gap: 10,
+            opacity: done ? 0.7 : 1,
           }}>
-            {/* Done checkmark */}
+            {/* Done indicator */}
             <div style={{
-              width: 20, height: 20, borderRadius: '50%', flexShrink: 0,
+              width: 18, height: 18, borderRadius: '50%', flexShrink: 0,
               background: done ? '#47ffb8' : 'var(--surface2)',
               border: `1px solid ${done ? '#47ffb8' : 'var(--border)'}`,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
-              {done && <span style={{ fontSize: 10, color: '#0b0b0d', fontWeight: 700 }}>✓</span>}
+              {done && <span style={{ fontSize: 9, color: '#0b0b0d', fontWeight: 700 }}>✓</span>}
             </div>
+
+            {/* Tag pill */}
+            {ex.workoutTag && (
+              <span style={{
+                fontSize: 10, fontFamily: 'DM Mono', fontWeight: 700,
+                color: tagCol, background: `${tagCol}18`,
+                border: `1px solid ${tagCol}40`,
+                borderRadius: 4, padding: '1px 6px', flexShrink: 0,
+              }}>{ex.workoutTag}</span>
+            )}
 
             {/* Info */}
             <div style={{ flex: 1, minWidth: 0, cursor: 'pointer' }} onClick={() => onSelect(ex)}>
-              <p style={{ fontWeight: 500, fontSize: 14, marginBottom: 2, opacity: done ? 0.6 : 1 }}>{ex.name}</p>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <p style={{ fontWeight: 500, fontSize: 13, marginBottom: 1, color: isMatch ? 'var(--text)' : 'var(--text2)' }}>
+                {ex.name}
+              </p>
+              <div style={{ display: 'flex', gap: 8 }}>
                 {ex.muscles && ex.muscles.slice(0, 2).map(m => (
                   <span key={m} style={{ fontSize: 10, fontFamily: 'DM Mono', color: 'var(--muted)' }}>{m}</span>
                 ))}
-                {lastMax !== null && (
+                {lastMax !== null && lastMax > 0 && (
                   <span style={{ fontSize: 10, fontFamily: 'DM Mono', color: 'var(--text2)' }}>
                     last: {lastMax}{ex.unit}
                   </span>
@@ -336,26 +293,16 @@ function SuggestedWorkouts({ exercises, logs, onSelect, onLogToday }) {
               </div>
             </div>
 
-            {/* Actions */}
+            {/* Log button */}
             {!done && onLogToday && (
               <button onClick={() => onLogToday(ex)} style={{
-                background: 'rgba(232,255,71,0.12)',
-                border: '1px solid rgba(232,255,71,0.3)',
-                color: 'var(--accent)',
-                borderRadius: 6,
-                padding: '4px 10px',
-                fontSize: 11,
-                fontFamily: 'DM Mono',
-                flexShrink: 0,
-                whiteSpace: 'nowrap',
-              }}>
-                + Log
-              </button>
+                background: isMatch ? `${TAG_COLORS[todayTag]}18` : 'rgba(255,255,255,0.04)',
+                border: `1px solid ${isMatch ? `${TAG_COLORS[todayTag]}40` : 'var(--border)'}`,
+                color: isMatch ? TAG_COLORS[todayTag] : 'var(--muted)',
+                borderRadius: 6, padding: '4px 10px',
+                fontSize: 11, fontFamily: 'DM Mono', flexShrink: 0,
+              }}>+ Log</button>
             )}
-            <button onClick={() => dismiss(ex.id)} title="Dismiss" style={{
-              background: 'transparent', border: 'none', color: 'var(--muted)',
-              padding: '4px 6px', fontSize: 14, flexShrink: 0,
-            }}>×</button>
           </div>
         )
       })}
@@ -364,10 +311,11 @@ function SuggestedWorkouts({ exercises, logs, onSelect, onLogToday }) {
 }
 
 /* ── My Day ── */
-function MyDay({ exercises, logs, onSelect, onLogToday }) {
+function MyDay({ exercises, logs, onSelect, onLogToday, schedule, onUpdateSchedule }) {
   const todayStr = isoToday()
 
   const [quickLogEx, setQuickLogEx] = useState(null)
+  const [showSchedule, setShowSchedule] = useState(false)
 
   const todaySessions = useMemo(() => {
     const out = []
@@ -395,13 +343,6 @@ function MyDay({ exercises, logs, onSelect, onLogToday }) {
     })
     return Object.entries(seen).sort((a, b) => b[1] - a[1])
   }, [todaySessions])
-
-  const staleToday = useMemo(() =>
-    exercises.filter(ex => {
-      const ls = logs[ex.id] || []
-      return daysSince(ls.length ? ls[ls.length - 1].date : null) >= 5
-    })
-  , [exercises, logs])
 
   return (
     <div>
@@ -442,14 +383,31 @@ function MyDay({ exercises, logs, onSelect, onLogToday }) {
       )}
 
       {/* Suggested workouts */}
-      <SectionHeader>
-        {DAY_SCHEDULE[new Date(todayStr + 'T12:00:00').getDay()]
-          ? `Suggested · ${DAY_SCHEDULE[new Date(todayStr + 'T12:00:00').getDay()]} Day`
-          : 'Suggested Workouts'}
-      </SectionHeader>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 24, marginBottom: 10 }}>
+        <p className="label" style={{ margin: 0 }}>
+          {(() => {
+            const day = new Date(todayStr + 'T12:00:00').getDay()
+            const tag = schedule[day]
+            return tag ? `Suggested · ${tag} Day` : 'Suggested Workouts'
+          })()}
+        </p>
+        <button onClick={() => setShowSchedule(s => !s)} style={{
+          background: 'transparent', border: '1px solid var(--border)',
+          color: 'var(--muted)', borderRadius: 6, padding: '3px 10px',
+          fontSize: 10, fontFamily: 'DM Mono', letterSpacing: '0.05em',
+        }}>⚙ Schedule</button>
+      </div>
+      {showSchedule && (
+        <ScheduleConfig
+          schedule={schedule}
+          onUpdate={onUpdateSchedule}
+          onClose={() => setShowSchedule(false)}
+        />
+      )}
       <SuggestedWorkouts
         exercises={exercises}
         logs={logs}
+        schedule={schedule}
         onSelect={onSelect}
         onLogToday={ex => setQuickLogEx(ex)}
       />
@@ -472,41 +430,7 @@ function MyDay({ exercises, logs, onSelect, onLogToday }) {
         </div>
       )}
 
-      {/* Stale alerts */}
-      {staleToday.length > 0 && (
-        <>
-          <SectionHeader>Needs Attention</SectionHeader>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {staleToday.slice(0, 4).map(ex => {
-              const ls = logs[ex.id] || []
-              const days = daysSince(ls.length ? ls[ls.length - 1].date : null)
-              return (
-                <div key={ex.id} onClick={() => onSelect(ex)} style={{
-                  background: 'var(--surface)',
-                  border: '1px solid rgba(255,77,77,0.3)',
-                  borderRadius: 9,
-                  padding: '11px 14px',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                }}
-                onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
-                onMouseLeave={e => e.currentTarget.style.background = 'var(--surface)'}
-                >
-                  <span style={{ fontSize: 14, fontWeight: 500 }}>{ex.name}</span>
-                  <span style={{ fontSize: 11, fontFamily: 'DM Mono', color: '#ff8080' }}>
-                    {days === Infinity ? 'never' : `${days}d ago`}
-                  </span>
-                </div>
-              )
-            })}
-            {staleToday.length > 4 && (
-              <p style={{ fontSize: 12, color: 'var(--muted)', textAlign: 'center' }}>+{staleToday.length - 4} more</p>
-            )}
-          </div>
-        </>
-      )}
+
 
       {/* Quick-log modal triggered from suggestions */}
       {quickLogEx && (
@@ -812,7 +736,7 @@ function MyWeek({ exercises, logs, onSelect, cardioData, onGoCardio }) {
 }
 
 /* ── Dashboard root ── */
-export default function Dashboard({ exercises, logs, cardioData, onSelect, onDelete, onAdd, onLogToday, onGoCardio }) {
+export default function Dashboard({ exercises, logs, cardioData, schedule, onUpdateSchedule, onSelect, onDelete, onAdd, onLogToday, onGoCardio }) {
   const [tab, setTab] = useState('day')
 
   const staleCount = useMemo(() =>
@@ -844,17 +768,13 @@ export default function Dashboard({ exercises, logs, cardioData, onSelect, onDel
             borderRadius: 6,
           }}>
             {t.label}
-            {t.key === 'exercises' && staleCount > 0 && (
-              <span style={{ marginLeft: 5, background: 'var(--danger)', color: '#fff', borderRadius: 8, padding: '1px 5px', fontSize: 9 }}>
-                {staleCount}
-              </span>
-            )}
+
           </button>
         ))}
       </div>
 
       {tab === 'day' && (
-        <MyDay exercises={exercises} logs={logs} onSelect={onSelect} onLogToday={onLogToday} />
+        <MyDay exercises={exercises} logs={logs} onSelect={onSelect} onLogToday={onLogToday} schedule={schedule} onUpdateSchedule={onUpdateSchedule} />
       )}
 
       {tab === 'week' && (
